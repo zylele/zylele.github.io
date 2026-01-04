@@ -1,0 +1,31 @@
+name: Manual Dependency Check
+on: [workflow_dispatch]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Setup Node.js
+        uses: actions/setup-node@master
+        with:
+          node-version: '20.x'
+
+      - name: Install npm-check-updates
+        run: npm install -g npm-check-updates
+
+      - name: Check updates
+        run: |
+          echo "=== 依赖更新检查 ==="
+          ncu
+
+      - name: Generate update report
+        run: |
+          echo "## 依赖更新报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "以下依赖包可以更新：" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ncu >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
