@@ -1,0 +1,137 @@
+# workflow name
+name: Auto Deployment
+
+# master branch on push, auto run
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  update-social:
+    if: ${{ contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: update_social_readme
+        uses: zylele/social-readme@master
+        with:
+          douban_name: znyalor
+          file_path: source/about/index.md
+
+  update-github-stat:
+    if: ${{ contains(fromJSON('["schedule", "workflow_dispatch"]'), github.event_name) }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      # Give the default GITHUB_TOKEN write permission to commit and push the
+      # added or changed files to the repository.
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Generate stats card
+        uses: readme-tools/github-readme-stats-action@v1
+        with:
+          card: stats
+          options: username=${{ github.repository_owner }}&show_icons=true
+          path: source/profile/stats.svg
+          token: ${{ github.token }}
+
+      - name: Commit cards
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Updated github stats by readme-tools
+          commit_user_name: github-actions[bot]
+          commit_user_email: github-actions[bot]@users.noreply.github.com
+          commit_author: github-actions[bot] <github-actions[bot]@users.noreply.github.com>
+          file_pattern: source/profile/*.svg
+
+  #  hexo-deploy:
+  #    needs: [ update-social, update-github-stat ]
+  #    if: always()
+  #    runs-on: ubuntu-latest
+  #    name: A job to deploy blog.
+  #    steps:
+  #      # check it to your workflow can access it
+  #      # from: https://github.com/actions/checkout
+  #      - name: Checkout
+  #        uses: actions/checkout@latest
+  #
+  #      # from: https://github.com/actions/setup-node
+  #      - name: Setup Node.js
+  #        uses: actions/setup-node@master
+  #        with:
+  #          node-version: "20.x"
+  #
+  #      - name: Setup Hexo Dependencies
+  #        run: |
+  #          npm install hexo-cli -g
+  #          npm install
+  #
+  #      - name: Setup Deploy Private Key
+  #        env:
+  #          HEXO_DEPLOY_PRIVATE_KEY: ${{ secrets.HEXO_DEPLOY_PRIVATE_KEY }}
+  #        run: |
+  #          mkdir -p ~/.ssh/
+  #          echo "$HEXO_DEPLOY_PRIVATE_KEY" > ~/.ssh/id_rsa
+  #          chmod 600 ~/.ssh/id_rsa
+  #          ssh-keyscan github.com >> ~/.ssh/known_hosts
+  #
+  #      - name: Setup Git Information
+  #        run: |
+  #          git config --global user.name 'zylele'
+  #          git config --global user.email '657345933@qq.com'
+  #      - name: Deploy Hexo
+  #        run: |
+  #          hexo clean
+  #          hexo generate
+  #          hexo deploy
+
+  hexo-build:
+    needs: [ update-social, update-github-stat ]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v6
+        with:
+          # Examples: 20, 18.19, >=16.20.2, lts/Iron, lts/Hydrogen, *, latest, current, node
+          # Ref: https://github.com/actions/setup-node#supported-version-syntax
+          node-version: "20"
+      - name: Cache NPM dependencies
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: ${{ runner.OS }}-npm-cache
+          restore-keys: |
+            ${{ runner.OS }}-npm-cache
+      - name: Install Dependencies
+        run: npm install
+      - name: Build
+        run: npm run build
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4.0.0
+        with:
+          path: ./public
+  hexo-deploy:
+    needs: [ hexo-build ]
+    if: always()
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
