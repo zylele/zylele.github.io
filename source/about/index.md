@@ -25,4 +25,4 @@ title: 「关于」
 
 #### 📈 一点微小的工作
 
-![Stats](/profile/stats.svg)
+![Stats](./profile/stats.svg)
